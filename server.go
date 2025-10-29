@@ -67,7 +67,8 @@ func parseRequestHeader(reader *bufio.Reader) map[string]string {
 		if strings.TrimSpace(line) == "" {
 			break
 		}
-		parts := strings.Split(strings.TrimSpace(line), ":")
+		parts := strings.SplitN(strings.TrimSpace(line), ":", 2)
+		fmt.Println(parts)
 		if len(parts) != 2 {
 			fmt.Println("Invalid header line")
 			break
@@ -78,7 +79,11 @@ func parseRequestHeader(reader *bufio.Reader) map[string]string {
 }
 
 func parseRequestBody(reader *bufio.Reader) {
+	return
+}
 
+func sendResponse(conn net.Conn) {
+	conn.Write([]byte("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!"))
 }
 
 func handleConnection(conn net.Conn) {
@@ -104,11 +109,14 @@ func handleConnection(conn net.Conn) {
 	if len(parts) != 3 {
 		fmt.Println("Invalid request line")
 	}
-	method, path, version := parts[0], parts[1], parts[2]
+	method, _, _ := parts[0], parts[1], parts[2]
 
 	parseRequestHeader(reader)
-	parseRequestBody(reader)
+	if method == POST {
+		parseRequestBody(reader)
+	}
 
+	sendResponse(conn)
 }
 func main() {
 	// Pseudocode:
