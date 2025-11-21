@@ -2,50 +2,50 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"net"
+	"strconv"
 	"strings"
 	// Libraries for HTTP server:
 	// "net/http" (for higher-level HTTP handling, though we're implementing a basic one)
 	// "io" (for input/output operations)
 )
 
-func parseRequestLine(request string) {
-	// Pseudocode:
-	// 1. Split the request line into method, path, and protocol version.
-	// 2. Validate the method (e.g., GET, POST).
-	// 3. Validate the path.
-	// 4. Validate the protocol version (e.g., HTTP/1.0).
-	var requestLine string
-	fmt.Println(requestLine)
-}
-
-func parse(request []byte) {
-	// Pseudocode:
-	// 1. Convert byte slice to string.
-	// 2. Iterate through the string to find the request line (first line).
-	// 3. Call parseRequestLine with the extracted request line.
-	// 4. Parse headers (key-value pairs) until an empty line is encountered.
-	// 5. If it's a POST request, read the body based on Content-Length header.
-	stringRequest := string(request)
-	fmt.Println(stringRequest)
-	isRequestLine := false
-
-	for i, char := range stringRequest {
-		if char == '\n' && !isRequestLine {
-			requestLine := stringRequest[:i]
-			parseRequestLine(requestLine)
-			isRequestLine = true
-			stringRequest = stringRequest[i+1:]
-		}
-
-	}
-}
-
 // All request types for http 1.0
 const POST = "POST"
 const GET = "GET"
 const HEAD = "HEAD"
+
+// Will parse and return a map of the request headers
+func parseRequestHeader(reader *bufio.Reader) map[string][]byte {
+	requestHeaders := make(map[string][]byte)
+	for {
+		line, err := reader.ReadBytes('\n')
+
+		if err != nil {
+			break
+		}
+		line = bytes.TrimSuffix(line, []byte("\r"))
+		// Check for empty line to sepeate request header from body
+		if len(line) == 1 && line[0] == '\r' {
+			break
+		}
+		parts := bytes.SplitN(line, []byte(":"), 2)
+		fmt.Println(parts)
+
+		if len(parts) != 2 {
+			fmt.Println("Invalid header line")
+			break
+		}
+
+		key := bytes.TrimSpace(parts[0])
+		value := bytes.TrimSpace(parts[1])
+		requestHeaders[string(key)] = value
+	}
+	return requestHeaders
+}
 
 // All content types
 const html = "text/html"
@@ -55,35 +55,62 @@ const jpeg = "image/jpeg"
 const octet = "application/octet-stream"
 const form = "application/x-www-form-urlencoded"
 
-// Will parse and return a map of the request headers
-func parseRequestHeader(reader *bufio.Reader) map[string]string {
-	requestHeaders := make(map[string]string)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			break
-		}
-		// Check for empty line to sepeate request header from body
-		if strings.TrimSpace(line) == "" {
-			break
-		}
-		parts := strings.SplitN(strings.TrimSpace(line), ":", 2)
-		fmt.Println(parts)
-		if len(parts) != 2 {
-			fmt.Println("Invalid header line")
-			break
-		}
-		requestHeaders[parts[0]] = parts[1]
-	}
-	return requestHeaders
-}
-
-func parseRequestBody(reader *bufio.Reader) {
-	return
-}
-
 func sendResponse(conn net.Conn) {
 	conn.Write([]byte("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!"))
+}
+
+func readBody(reader *bufio.Reader, contentLength int) []byte {
+	body := make([]byte, contentLength)
+	_, err := io.ReadFull(reader, body)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return body
+}
+
+func getContentLength(contentLength []byte) int {
+	contentLengthStr := string(contentLength)
+	if contentLengthStr == "" {
+		return 0
+	}
+	length, err := strconv.Atoi(contentLengthStr)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return length
+}
+
+type Request struct {
+	Method  string
+	Path    string
+	Version string
+	Headers map[string][]byte
+	Body    []byte
+}
+
+type Response struct {
+	Headers    map[string][]byte
+	StatusCode int
+	Body       []byte
+}
+
+type Router struct {
+	Routes map[string]func(Request) Response
+}
+
+func (r *Router) AddRoute(method, path string, handler func(Request) Response) {
+	key := method + " " + path
+	r.Routes[key] = handler
+}
+
+func (r *Router) Route(req Request) Response {
+	key := req.Method + " " + req.Path
+
+	if handler, exists := r.Routes[key]; exists {
+		return handler(req)
+	}
+
+	return Response{StatusCode: 404, Body: []byte("Not Found")}
 }
 
 func handleConnection(conn net.Conn) {
@@ -111,9 +138,11 @@ func handleConnection(conn net.Conn) {
 	}
 	method, _, _ := parts[0], parts[1], parts[2]
 
-	parseRequestHeader(reader)
+	headerMap := parseRequestHeader(reader)
+	contentLength := getContentLength(headerMap["Content-Length"])
+	var body []byte
 	if method == POST {
-		parseRequestBody(reader)
+		body = readBody(reader, contentLength)
 	}
 
 	sendResponse(conn)
