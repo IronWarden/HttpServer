@@ -56,7 +56,7 @@ const octet = "application/octet-stream"
 const form = "application/x-www-form-urlencoded"
 
 func sendResponse(conn net.Conn, response Response) {
-	stringResponse := fmt.Spr
+	stringResponse := fmt.Sprintf("")
 	conn.Write(response.Body)
 }
 
@@ -184,7 +184,7 @@ func main() {
 	defer listener.Close()
 	fmt.Println("Listening on port 8080")
 	router := InitRouter()
-	router.AddRoute("POST", "/blog", func(req Request) Response {})
+	router.AddRoute("POST", "/blog", printAPI())
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
