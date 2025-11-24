@@ -55,8 +55,9 @@ const jpeg = "image/jpeg"
 const octet = "application/octet-stream"
 const form = "application/x-www-form-urlencoded"
 
-func sendResponse(conn net.Conn) {
-	conn.Write([]byte("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!"))
+func sendResponse(conn net.Conn, response Response) {
+	stringResponse := fmt.Spr
+	conn.Write(response.Body)
 }
 
 func readBody(reader *bufio.Reader, contentLength int) []byte {
@@ -98,6 +99,12 @@ type Router struct {
 	Routes map[string]func(Request) Response
 }
 
+func InitRouter() *Router {
+	return &Router{
+		Routes: make(map[string]func(Request) Response),
+	}
+}
+
 func (r *Router) AddRoute(method, path string, handler func(Request) Response) {
 	key := method + " " + path
 	r.Routes[key] = handler
@@ -113,7 +120,7 @@ func (r *Router) Route(req Request) Response {
 	return Response{StatusCode: 404, Body: []byte("Not Found")}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, router *Router) {
 	defer conn.Close()
 	// Pseudocode:
 	// 1. Create a new buffered reader for the connection.
@@ -133,20 +140,30 @@ func handleConnection(conn net.Conn) {
 	}
 
 	parts := strings.Split(strings.TrimSpace(requestLine), " ")
+
 	if len(parts) != 3 {
 		fmt.Println("Invalid request line")
 	}
-	method, _, _ := parts[0], parts[1], parts[2]
-
+	method, path, version := parts[0], parts[1], parts[2]
 	headerMap := parseRequestHeader(reader)
 	contentLength := getContentLength(headerMap["Content-Length"])
 	var body []byte
+
 	if method == POST {
 		body = readBody(reader, contentLength)
 	}
+	request := Request{
+		Method:  method,
+		Path:    path,
+		Version: version,
+		Headers: headerMap,
+		Body:    body,
+	}
+	response := router.Route(request)
 
-	sendResponse(conn)
+	sendResponse(conn, response)
 }
+
 func main() {
 	// Pseudocode:
 	// 1. Choose a port to listen on (e.g., 8080).
@@ -166,6 +183,8 @@ func main() {
 	}
 	defer listener.Close()
 	fmt.Println("Listening on port 8080")
+	router := InitRouter()
+	router.AddRoute("POST", "/blog", func(req Request) Response {})
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
