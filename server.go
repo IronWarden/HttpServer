@@ -8,9 +8,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	// Libraries for HTTP server:
-	// "net/http" (for higher-level HTTP handling, though we're implementing a basic one)
-	// "io" (for input/output operations)
 )
 
 // All request types for http 1.0
@@ -47,17 +44,9 @@ func parseRequestHeader(reader *bufio.Reader) map[string][]byte {
 	return requestHeaders
 }
 
-// All content types
-const html = "text/html"
-const plain = "text/plain"
-const gif = "image/gif"
-const jpeg = "image/jpeg"
-const octet = "application/octet-stream"
-const form = "application/x-www-form-urlencoded"
-
 func sendResponse(conn net.Conn, response Response) {
 	stringResponse := fmt.Sprintf("")
-	conn.Write(response.Body)
+	conn.Write([]byte(stringResponse))
 }
 
 func readBody(reader *bufio.Reader, contentLength int) []byte {
@@ -184,13 +173,13 @@ func main() {
 	defer listener.Close()
 	fmt.Println("Listening on port 8080")
 	router := InitRouter()
-	router.AddRoute("POST", "/blog", printAPI())
+	router.AddRoute("POST", "/blog", printAPI)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		go handleConnection(conn)
+		go handleConnection(conn, router)
 	}
 }

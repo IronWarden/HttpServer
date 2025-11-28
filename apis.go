@@ -23,7 +23,7 @@ const (
 	Service_Unavailable   = 503
 )
 
-func printAPI(r *Request) Response {
+func printAPI(r Request) Response {
 	response := Response{
 		StatusCode: OK,
 	}
@@ -33,4 +33,5 @@ func printAPI(r *Request) Response {
 	case "POST":
 		fmt.Printf("You are posting to path: %s", r.Path)
 	}
+	return response
 }
