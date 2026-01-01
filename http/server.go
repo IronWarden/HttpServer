@@ -1,4 +1,4 @@
-package main
+package http
 
 import (
 	"bufio"
@@ -11,16 +11,20 @@ import (
 )
 
 // All request types for http 1.0
-const POST = "POST"
-const GET = "GET"
-const HEAD = "HEAD"
+const (
+	POST = "POST"
+	GET  = "GET"
+	HEAD = "HEAD"
+)
+
+// Global router
+var router *Router
 
 // Will parse and return a map of the request headers
 func parseRequestHeader(reader *bufio.Reader) map[string][]byte {
 	requestHeaders := make(map[string][]byte)
 	for {
 		line, err := reader.ReadBytes('\n')
-
 		if err != nil {
 			break
 		}
@@ -123,7 +127,6 @@ func handleConnection(conn net.Conn, router *Router) {
 	// 9. Write the response back to the client.
 	reader := bufio.NewReader(conn)
 	requestLine, err := reader.ReadString('\n')
-
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -172,8 +175,6 @@ func main() {
 	}
 	defer listener.Close()
 	fmt.Println("Listening on port 8080")
-	router := InitRouter()
-	router.AddRoute("POST", "/blog", printAPI)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
