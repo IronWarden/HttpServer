@@ -17,8 +17,42 @@ const (
 	HEAD = "HEAD"
 )
 
-// Global router
-var router *Router
+// Status Codes for HTTP 1.0
+const (
+	OK                    = 200
+	Created               = 201
+	Accepted              = 202
+	No_Content            = 204
+	Moved_Permanently     = 301
+	Moved_Temporarily     = 302
+	Not_Modified          = 304
+	Bad_Request           = 400
+	Unauthorized          = 401
+	Forbidden             = 403
+	Not_Found             = 404
+	Internal_Server_Error = 500
+	Not_Implemented       = 501
+	Bad_Gateway           = 502
+	Service_Unavailable   = 503
+)
+
+type Request struct {
+	Method  string
+	Path    string
+	Version string
+	Headers map[string][]byte
+	Body    []byte
+}
+
+type Response struct {
+	Headers    map[string][]byte
+	StatusCode int
+	Body       []byte
+}
+
+type Router struct {
+	Routes map[string]func(Request) Response
+}
 
 // Will parse and return a map of the request headers
 func parseRequestHeader(reader *bufio.Reader) map[string][]byte {
@@ -48,9 +82,58 @@ func parseRequestHeader(reader *bufio.Reader) map[string][]byte {
 	return requestHeaders
 }
 
+// Created               = 201
+// Accepted              = 202
+// No_Content            = 204
+// Moved_Permanently     = 301
+// Moved_Temporarily     = 302
+// Not_Modified          = 304
+// Bad_Request           = 400
+// Unauthorized          = 401
+// Forbidden             = 403
+// Not_Found             = 404
+// Internal_Server_Error = 500
+// Not_Implemented       = 501
+// Bad_Gateway           = 502
+// Service_Unavailable   = 503
 func sendResponse(conn net.Conn, response Response) {
-	stringResponse := fmt.Sprintf("")
-	conn.Write([]byte(stringResponse))
+	switch response.StatusCode {
+	case OK:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d OK\r\n", response.StatusCode)))
+	case Created:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Created\r\n", response.StatusCode)))
+	case Accepted:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Accepted\r\n", response.StatusCode)))
+	case No_Content:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d No Content\r\n", response.StatusCode)))
+	case Moved_Permanently:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Moved Permanently\r\n", response.StatusCode)))
+	case Moved_Temporarily:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Moved Temporarily\r\n", response.StatusCode)))
+	case Not_Modified:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Not Modified\r\n", response.StatusCode)))
+	case Bad_Request:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Bad Request\r\n", response.StatusCode)))
+	case Unauthorized:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Unauthorized\r\n", response.StatusCode)))
+	case Forbidden:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Forbidden\r\n", response.StatusCode)))
+	case Not_Found:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Not Found\r\n", response.StatusCode)))
+	case Internal_Server_Error:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Internal Server Error\r\n", response.StatusCode)))
+	case Not_Implemented:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Not Implemented\r\n", response.StatusCode)))
+	case Bad_Gateway:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Bad Gateway\r\n", response.StatusCode)))
+	case Service_Unavailable:
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Service Unavailable\r\n", response.StatusCode)))
+	}
+
+	for key, value := range response.Headers {
+		conn.Write([]byte(fmt.Sprintf("%s: %s\r\n", key, value)))
+	}
+	conn.Write(response.Body)
 }
 
 func readBody(reader *bufio.Reader, contentLength int) []byte {
@@ -74,43 +157,25 @@ func getContentLength(contentLength []byte) int {
 	return length
 }
 
-type Request struct {
-	Method  string
-	Path    string
-	Version string
-	Headers map[string][]byte
-	Body    []byte
-}
-
-type Response struct {
-	Headers    map[string][]byte
-	StatusCode int
-	Body       []byte
-}
-
-type Router struct {
-	Routes map[string]func(Request) Response
-}
-
 func InitRouter() *Router {
 	return &Router{
 		Routes: make(map[string]func(Request) Response),
 	}
 }
 
-func (r *Router) AddRoute(method, path string, handler func(Request) Response) {
-	key := method + " " + path
+func (r *Router) AddRoute(path string, handler func(Request) Response) {
+	key := path
 	r.Routes[key] = handler
 }
 
 func (r *Router) Route(req Request) Response {
-	key := req.Method + " " + req.Path
+	key := req.Path
 
 	if handler, exists := r.Routes[key]; exists {
 		return handler(req)
 	}
 
-	return Response{StatusCode: 404, Body: []byte("Not Found")}
+	return Response{StatusCode: Not_Found, Body: []byte("Not Found")}
 }
 
 func handleConnection(conn net.Conn, router *Router) {
@@ -129,19 +194,21 @@ func handleConnection(conn net.Conn, router *Router) {
 	requestLine, err := reader.ReadString('\n')
 	if err != nil {
 		fmt.Println(err)
+		conn.Close()
 	}
 
 	parts := strings.Split(strings.TrimSpace(requestLine), " ")
 
 	if len(parts) != 3 {
 		fmt.Println("Invalid request line")
+		conn.Close()
 	}
 	method, path, version := parts[0], parts[1], parts[2]
 	headerMap := parseRequestHeader(reader)
-	contentLength := getContentLength(headerMap["Content-Length"])
 	var body []byte
 
 	if method == POST {
+		contentLength := getContentLength(headerMap["Content-Length"])
 		body = readBody(reader, contentLength)
 	}
 	request := Request{
@@ -156,7 +223,7 @@ func handleConnection(conn net.Conn, router *Router) {
 	sendResponse(conn, response)
 }
 
-func main() {
+func Listen(router *Router) {
 	// Pseudocode:
 	// 1. Choose a port to listen on (e.g., 8080).
 	// 2. Establish a TCP listener on the chosen port.
