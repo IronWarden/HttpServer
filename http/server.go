@@ -64,11 +64,10 @@ func parseRequestHeader(reader *bufio.Reader) map[string][]byte {
 		}
 		line = bytes.TrimSuffix(line, []byte("\r"))
 		// Check for empty line to sepeate request header from body
-		if len(line) == 1 && line[0] == '\r' {
+		if len(line) == 1 && line[0] == '\n' {
 			break
 		}
 		parts := bytes.SplitN(line, []byte(":"), 2)
-		fmt.Println(parts)
 
 		if len(parts) != 2 {
 			fmt.Println("Invalid header line")
@@ -130,9 +129,15 @@ func sendResponse(conn net.Conn, response Response) {
 		conn.Write([]byte(fmt.Sprintf("HTTP/1.0 %d Service Unavailable\r\n", response.StatusCode)))
 	}
 
+	// Default headers
+	conn.Write([]byte("Server: My Server\r\n"))
+	conn.Write([]byte("Content-Length: 0\r\n"))
+
 	for key, value := range response.Headers {
 		conn.Write([]byte(fmt.Sprintf("%s: %s\r\n", key, value)))
 	}
+	// Blank line
+	conn.Write([]byte("\r\n"))
 	conn.Write(response.Body)
 }
 
@@ -195,6 +200,7 @@ func handleConnection(conn net.Conn, router *Router) {
 	if err != nil {
 		fmt.Println(err)
 		conn.Close()
+		return
 	}
 
 	parts := strings.Split(strings.TrimSpace(requestLine), " ")
@@ -202,6 +208,7 @@ func handleConnection(conn net.Conn, router *Router) {
 	if len(parts) != 3 {
 		fmt.Println("Invalid request line")
 		conn.Close()
+		return
 	}
 	method, path, version := parts[0], parts[1], parts[2]
 	headerMap := parseRequestHeader(reader)
