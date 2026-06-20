@@ -30,6 +30,7 @@ const (
 	Unauthorized          = 401
 	Forbidden             = 403
 	Not_Found             = 404
+	Request_Timeout       = 408
 	Internal_Server_Error = 500
 	Not_Implemented       = 501
 	Bad_Gateway           = 502
@@ -230,7 +231,7 @@ func handleConnection(conn net.Conn, router *Router) {
 	sendResponse(conn, response)
 }
 
-func Listen(router *Router) {
+func Listen(router *Router, addr string) {
 	// Pseudocode:
 	// 1. Choose a port to listen on (e.g., 8080).
 	// 2. Establish a TCP listener on the chosen port.
@@ -243,12 +244,12 @@ func Listen(router *Router) {
 	//    c. Generate an appropriate HTTP response.
 	//    d. Write the response back to the client.
 	//    e. Close the connection.
-	listener, err := net.Listen("tcp", ":8080")
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer listener.Close()
-	fmt.Println("Listening on port 8080")
+	fmt.Println(fmt.Sprintf("Listening on %s", addr))
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

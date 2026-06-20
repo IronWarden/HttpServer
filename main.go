@@ -9,5 +9,6 @@ func main() {
 	fmt.Println("Starting Server...")
 	router := http.InitRouter()
 	router.AddRoute("/api", http.PrintAPI)
-	http.Listen(router)
+	address := "127.0.0.1:8080"
+	http.Listen(router, address)
 }
