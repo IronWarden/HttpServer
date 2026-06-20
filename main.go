@@ -1,8 +1,8 @@
 package main
 
 import (
-	"./http"
 	"fmt"
+	"http/http"
 )
 
 func main() {
