@@ -34,8 +34,9 @@ type Conn interface {
 	SetWriteDeadline(t time.Time) error
 }
 
-type tcpListener struct{
- 	addr Addr 
+type tcpListener struct {
+	fd   int
+	addr Addr
 }
 
 type address struct {
@@ -49,25 +50,29 @@ func (address) Network() string {
 func (a address) String() string {
 	return a.addr
 }
+
 type tcpConn struct{}
 
-func (t tcpListener) Addr() Addr {
+func (t *tcpListener) Addr() Addr {
 	return t.addr
 }
 
+func (t *tcpListener) Close() error {
+	if t.fd != -1 {
+		err := unix.Close(t.fd)
+		t.fd = -1
+		return err
+	}
+	return nil
+}
+
 func (t *tcpListener) Accept() (Conn, error) {
-	// Create a socket
-	fd, err := createSocket(t.Addr().String())
-	if err != nil {
-        return nil, err
-    }
 	// Accept loop
 	for {
 		// Accept blocks until a TCP 3-way handshake is finished in the kernel's queue.
 		// It returns a brand-new file descriptor (nfd) exclusively for communicating with this specific client,
 		// and the remote client's network address (sa).
 	}
-
 }
 
 func createSocket(addr string) (int, error) {
@@ -120,9 +125,13 @@ func createSocket(addr string) (int, error) {
 }
 
 func Listen(address string) (Listener, error) {
-	return nil, fmt.Errorf("failed to start a connection")
-	tcpListener := &tcpListener{
-		address
+	fd, err := createSocket(address)
+	if err != nil {
+		return nil, err
 	}
-
+	tcpListener := &tcpListener{
+		fd:   fd,
+		addr: address,
+	}
+	return tcpListener, nil
 }
